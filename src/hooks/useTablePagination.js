@@ -1,21 +1,32 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 
 /**
- * Custom hook for Table Search, Sorting, and Pagination
+ * Custom hook for Table Search, Sorting, Row Selection, and Pagination
  */
 export function useTablePagination(data) {
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [sortColumn, setSortColumn] = useState('TGLREMAJA');
   const [sortDirection, setSortDirection] = useState('desc');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+
+  // Debounce search input for silky-smooth 60fps performance
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+      setCurrentPage(1);
+    }, 150);
+    return () => clearTimeout(handler);
+  }, [searchTerm]);
 
   // Filtered by Search & Sorted
   const processedData = useMemo(() => {
     let list = [...data];
 
     // Search Query
-    const query = searchTerm.toLowerCase().trim();
+    const query = debouncedSearch.toLowerCase().trim();
     if (query) {
       list = list.filter(item => {
         return (
@@ -25,7 +36,8 @@ export function useTablePagination(data) {
           String(item.NO_METER_BARU || '').toLowerCase().includes(query) ||
           String(item.TARIF || '').toLowerCase().includes(query) ||
           String(item.ALASAN_GANTI_METER || '').toLowerCase().includes(query) ||
-          String(item.PETUGASREMAJA || '').toLowerCase().includes(query)
+          String(item.PETUGASREMAJA || '').toLowerCase().includes(query) ||
+          String(item.UNITUP || '').toLowerCase().includes(query)
         );
       });
     }
@@ -53,7 +65,7 @@ export function useTablePagination(data) {
     });
 
     return list;
-  }, [data, searchTerm, sortColumn, sortDirection]);
+  }, [data, debouncedSearch, sortColumn, sortDirection]);
 
   // Pagination calculations
   const totalItems = processedData.length;
@@ -78,12 +90,35 @@ export function useTablePagination(data) {
     setCurrentPage(Math.min(Math.max(page, 1), totalPages));
   };
 
+  const toggleSelectRow = (id) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAllCurrentPage = () => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      const allCurrentSelected = paginatedData.every(r => next.has(r._id));
+      if (allCurrentSelected) {
+        paginatedData.forEach(r => next.delete(r._id));
+      } else {
+        paginatedData.forEach(r => next.add(r._id));
+      }
+      return next;
+    });
+  };
+
+  const clearSelection = () => {
+    setSelectedIds(new Set());
+  };
+
   return {
     searchTerm,
-    setSearchTerm: (term) => {
-      setSearchTerm(term);
-      setCurrentPage(1);
-    },
+    setSearchTerm,
     sortColumn,
     sortDirection,
     handleSort,
@@ -97,6 +132,10 @@ export function useTablePagination(data) {
     totalItems,
     paginatedData,
     processedData,
-    setPage
+    setPage,
+    selectedIds,
+    toggleSelectRow,
+    toggleSelectAllCurrentPage,
+    clearSelection
   };
 }

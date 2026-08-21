@@ -8,5 +8,18 @@ export default defineConfig({
   server: {
     port: 3000,
     open: false
+  },
+  build: {
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom'],
+          'vendor-charts': ['chart.js', 'react-chartjs-2'],
+          'vendor-xlsx': ['xlsx', 'papaparse'],
+          'vendor-icons': ['lucide-react']
+        }
+      }
+    }
   }
 });

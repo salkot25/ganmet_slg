@@ -1,5 +1,16 @@
 import React, { useRef, useEffect } from 'react';
-import { SlidersHorizontal, Building2, Calendar, AlertCircle, Zap, RotateCcw, CalendarRange } from 'lucide-react';
+import {
+  SlidersHorizontal,
+  Building2,
+  Calendar,
+  AlertCircle,
+  Zap,
+  RotateCcw,
+  CalendarRange,
+  X,
+  Filter,
+  Check
+} from 'lucide-react';
 import { Card } from './common/Card';
 import { Button } from './common/Button';
 import { getPresetDateRange, formatDMY } from '../utils/dateHelpers';
@@ -10,7 +21,8 @@ export function FilterSection({
   onUpdateFilter,
   onResetFilters,
   unitupOptions,
-  alasanOptions
+  alasanOptions,
+  latestDate
 }) {
   const dateInputRef = useRef(null);
   const fpRef = useRef(null);
@@ -54,7 +66,7 @@ export function FilterSection({
       onUpdateFilter('dateEnd', null);
       if (fpRef.current) fpRef.current.clear();
     } else {
-      const { start, end } = getPresetDateRange(preset);
+      const { start, end } = getPresetDateRange(preset, latestDate);
       onUpdateFilter('dateStart', start);
       onUpdateFilter('dateEnd', end);
       if (fpRef.current && start && end) {
@@ -67,41 +79,96 @@ export function FilterSection({
     if (!filters.dateStart && !filters.dateEnd) return 'all';
     const yrStart = filters.dateStart?.getFullYear();
     const yrEnd = filters.dateEnd?.getFullYear();
-    if (yrStart === 2024 && yrEnd === 2024) return '2024';
-    if (yrStart === 2025 && yrEnd === 2025) return '2025';
-    if (yrStart === 2026 && yrEnd === 2026) return '2026';
+    if (yrStart === 2024 && yrEnd === 2024 && filters.dateStart.getMonth() === 0 && filters.dateEnd.getMonth() === 11) return '2024';
+    if (yrStart === 2025 && yrEnd === 2025 && filters.dateStart.getMonth() === 0 && filters.dateEnd.getMonth() === 11) return '2025';
+    if (yrStart === 2026 && yrEnd === 2026 && filters.dateStart.getMonth() === 0 && filters.dateEnd.getMonth() === 11) return '2026';
     return 'custom';
   };
 
   const activePreset = getActivePreset();
 
+  // Calculate active filter count
+  const activeFilters = [];
+  if (filters.unitup !== 'ALL') {
+    activeFilters.push({
+      key: 'unitup',
+      label: `ULP: ${filters.unitup}`,
+      onRemove: () => onUpdateFilter('unitup', 'ALL')
+    });
+  }
+  if (filters.dateStart && filters.dateEnd) {
+    activeFilters.push({
+      key: 'date',
+      label: `${formatDMY(filters.dateStart)} - ${formatDMY(filters.dateEnd)}`,
+      onRemove: () => {
+        onUpdateFilter('dateStart', null);
+        onUpdateFilter('dateEnd', null);
+        if (fpRef.current) fpRef.current.clear();
+      }
+    });
+  }
+  if (filters.alasan !== 'ALL') {
+    activeFilters.push({
+      key: 'alasan',
+      label: `Alasan: ${filters.alasan}`,
+      onRemove: () => onUpdateFilter('alasan', 'ALL')
+    });
+  }
+  if (filters.layanan !== 'ALL') {
+    const layananLabels = {
+      PRABAYAR: 'Prabayar (LPB)',
+      PASKABAYAR: 'Paskabayar',
+      AMR_AMI: 'AMR/AMI'
+    };
+    activeFilters.push({
+      key: 'layanan',
+      label: `Layanan: ${layananLabels[filters.layanan] || filters.layanan}`,
+      onRemove: () => onUpdateFilter('layanan', 'ALL')
+    });
+  }
+
   return (
     <Card className="border-l-4 border-l-pln-cyan">
       {/* Filter Header */}
-      <div className="flex items-center justify-between pb-4 border-b border-surface-light-border dark:border-surface-dark-border mb-5">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3.5 border-b border-surface-light-border dark:border-surface-dark-border mb-4">
         <div className="flex items-center gap-2.5">
-          <SlidersHorizontal className="w-5 h-5 text-pln-cyan" />
-          <h3 className="text-sm md:text-base font-bold text-slate-900 dark:text-slate-100">
-            Filter Analitik
-          </h3>
+          <div className="w-8 h-8 rounded-8px bg-pln-cyan/15 border border-pln-cyan/30 flex items-center justify-center text-pln-cyan">
+            <SlidersHorizontal className="w-4 h-4" />
+          </div>
+          <div>
+            <h3 className="text-sm md:text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+              Filter Analitik
+              {activeFilters.length > 0 && (
+                <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-pln-cyan text-white shadow-sm">
+                  {activeFilters.length} Aktif
+                </span>
+              )}
+            </h3>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              Saring parameter berdasarkan unit kerja, tanggal remaja, alasan, dan tipe meter
+            </p>
+          </div>
         </div>
-        <Button variant="ghost" size="sm" icon={RotateCcw} onClick={onResetFilters}>
-          Reset Filter
-        </Button>
+
+        {activeFilters.length > 0 && (
+          <Button variant="ghost" size="sm" icon={RotateCcw} onClick={onResetFilters}>
+            Reset Semua Filter
+          </Button>
+        )}
       </div>
 
-      {/* Filter 4-Column Grid adhering to 4px spacing rules */}
+      {/* Filter 4-Column Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5">
         {/* 1. Filter UNITUP (Kolom D) */}
         <div className="flex flex-col gap-1.5">
           <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
             <Building2 className="w-3.5 h-3.5 text-pln-cyan" />
-            Unit ULP
+            Unit Pelayanan (ULP)
           </label>
           <select
             value={filters.unitup}
             onChange={(e) => onUpdateFilter('unitup', e.target.value)}
-            className="w-full px-3 py-2 bg-base-light dark:bg-base-dark border border-surface-light-border dark:border-surface-dark-border rounded-8px text-xs font-medium text-slate-900 dark:text-slate-100 focus:outline-none focus:border-pln-cyan focus:ring-1 focus:ring-pln-cyan"
+            className="w-full px-3 py-2 bg-base-light dark:bg-base-dark border border-surface-light-border dark:border-surface-dark-border rounded-8px text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:border-pln-cyan focus:ring-1 focus:ring-pln-cyan transition-colors"
           >
             <option value="ALL">Semua UNITUP</option>
             {unitupOptions.map((unit) => (
@@ -116,36 +183,38 @@ export function FilterSection({
         <div className="flex flex-col gap-1.5">
           <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
             <Calendar className="w-3.5 h-3.5 text-pln-cyan" />
-            Tanggal Remaja
+            Tanggal Remaja (Tgl Pasang)
           </label>
           <div className="relative">
             <input
               ref={dateInputRef}
               type="text"
               placeholder="Pilih Rentang Tanggal..."
-              className="w-full px-3 py-2 pr-9 bg-base-light dark:bg-base-dark border border-surface-light-border dark:border-surface-dark-border rounded-8px text-xs font-medium text-slate-900 dark:text-slate-100 focus:outline-none focus:border-pln-cyan focus:ring-1 focus:ring-pln-cyan cursor-pointer"
+              className="w-full px-3 py-2 pr-9 bg-base-light dark:bg-base-dark border border-surface-light-border dark:border-surface-dark-border rounded-8px text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:border-pln-cyan focus:ring-1 focus:ring-pln-cyan cursor-pointer"
               readOnly
             />
             <CalendarRange className="absolute right-3 top-2.5 w-4 h-4 text-slate-400 pointer-events-none" />
           </div>
           {/* Date Presets */}
-          <div className="flex gap-1.5 pt-1 flex-wrap">
-            {['all', '2024', '2025', '2026', 'last30'].map((preset) => (
+          <div className="flex gap-1 pt-1 flex-wrap">
+            {[
+              { id: 'all', label: 'Semua' },
+              { id: 'last30', label: '30 Hari' },
+              { id: '2024', label: '2024' },
+              { id: '2025', label: '2025' },
+              { id: '2026', label: '2026' }
+            ].map((p) => (
               <button
-                key={preset}
+                key={p.id}
                 type="button"
-                onClick={() => handlePresetClick(preset)}
-                className={`px-2 py-0.5 text-[11px] font-semibold rounded-4px border transition-all ${
-                  activePreset === preset
+                onClick={() => handlePresetClick(p.id)}
+                className={`px-2 py-0.5 text-[10px] font-bold rounded-4px border transition-all ${
+                  activePreset === p.id
                     ? 'bg-pln-cyan text-white border-pln-cyan shadow-sm'
-                    : 'bg-base-light dark:bg-base-dark text-slate-600 dark:text-slate-400 border-surface-light-border dark:border-surface-dark-border hover:border-pln-cyan/40 hover:text-pln-cyan'
+                    : 'bg-base-light dark:bg-base-dark text-slate-600 dark:text-slate-400 border-surface-light-border dark:border-surface-dark-border hover:border-pln-cyan/50 hover:text-pln-cyan'
                 }`}
               >
-                {preset === 'all'
-                  ? 'Semua'
-                  : preset === 'last30'
-                  ? '30 Hari'
-                  : preset}
+                {p.label}
               </button>
             ))}
           </div>
@@ -160,7 +229,7 @@ export function FilterSection({
           <select
             value={filters.alasan}
             onChange={(e) => onUpdateFilter('alasan', e.target.value)}
-            className="w-full px-3 py-2 bg-base-light dark:bg-base-dark border border-surface-light-border dark:border-surface-dark-border rounded-8px text-xs font-medium text-slate-900 dark:text-slate-100 focus:outline-none focus:border-pln-cyan focus:ring-1 focus:ring-pln-cyan"
+            className="w-full px-3 py-2 bg-base-light dark:bg-base-dark border border-surface-light-border dark:border-surface-dark-border rounded-8px text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:border-pln-cyan focus:ring-1 focus:ring-pln-cyan transition-colors"
           >
             <option value="ALL">Semua Alasan Penggantian</option>
             {alasanOptions.map((item) => (
@@ -175,9 +244,9 @@ export function FilterSection({
         <div className="flex flex-col gap-1.5">
           <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
             <Zap className="w-3.5 h-3.5 text-pln-cyan" />
-            Jenis kWh Meter
+            Jenis Layanan Meter
           </label>
-          <div className="flex p-1 bg-base-light dark:bg-base-dark border border-surface-light-border dark:border-surface-dark-border rounded-8px gap-1">
+          <div className="grid grid-cols-2 gap-1 p-1 bg-base-light dark:bg-base-dark border border-surface-light-border dark:border-surface-dark-border rounded-8px">
             {[
               { id: 'ALL', label: 'Semua' },
               { id: 'PRABAYAR', label: 'Prabayar' },
@@ -188,7 +257,7 @@ export function FilterSection({
                 key={tab.id}
                 type="button"
                 onClick={() => onUpdateFilter('layanan', tab.id)}
-                className={`flex-1 py-1.5 px-2 text-[11px] font-semibold rounded-4px transition-all truncate ${
+                className={`py-1.5 px-2 text-[11px] font-bold rounded-4px transition-all truncate text-center ${
                   filters.layanan === tab.id
                     ? 'bg-pln-cyan text-white shadow-sm'
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
@@ -200,6 +269,31 @@ export function FilterSection({
           </div>
         </div>
       </div>
+
+      {/* Active Filter Chips Bar */}
+      {activeFilters.length > 0 && (
+        <div className="flex items-center gap-2 pt-3 mt-3 border-t border-surface-light-border dark:border-surface-dark-border flex-wrap animate-fade-in text-xs">
+          <span className="text-[11px] font-bold text-slate-400 flex items-center gap-1">
+            <Filter className="w-3 h-3 text-pln-cyan" /> Filter Aktif:
+          </span>
+          {activeFilters.map((chip) => (
+            <span
+              key={chip.key}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-pln-cyan/15 border border-pln-cyan/30 text-pln-cyan-light text-xs font-bold shadow-sm"
+            >
+              <span>{chip.label}</span>
+              <button
+                type="button"
+                onClick={chip.onRemove}
+                className="hover:text-rose-400 p-0.5 rounded-full hover:bg-rose-500/20 transition-colors"
+                title="Hapus filter ini"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
     </Card>
   );
 }

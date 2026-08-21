@@ -37,7 +37,41 @@ export function formatDMY(date) {
   return `${d}/${m}/${y}`;
 }
 
-export function getPresetDateRange(preset) {
+export function getPresetDateRange(preset, datasetLatestDate = null) {
+  const refDate = datasetLatestDate || new Date();
+  
+  if (preset === 'today') {
+    const start = new Date(refDate);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(refDate);
+    end.setHours(23, 59, 59, 999);
+    return { start, end };
+  }
+
+  if (preset === 'last7') {
+    const end = new Date(refDate);
+    end.setHours(23, 59, 59, 999);
+    const start = new Date(refDate);
+    start.setDate(start.getDate() - 7);
+    start.setHours(0, 0, 0, 0);
+    return { start, end };
+  }
+
+  if (preset === 'last30') {
+    const end = new Date(refDate);
+    end.setHours(23, 59, 59, 999);
+    const start = new Date(refDate);
+    start.setDate(start.getDate() - 30);
+    start.setHours(0, 0, 0, 0);
+    return { start, end };
+  }
+
+  if (preset === 'thisMonth') {
+    const start = new Date(refDate.getFullYear(), refDate.getMonth(), 1);
+    const end = new Date(refDate.getFullYear(), refDate.getMonth() + 1, 0, 23, 59, 59);
+    return { start, end };
+  }
+
   if (preset === '2024') {
     return {
       start: new Date(2024, 0, 1),
@@ -56,11 +90,26 @@ export function getPresetDateRange(preset) {
       end: new Date(2026, 11, 31, 23, 59, 59)
     };
   }
-  if (preset === 'last30') {
-    const end = new Date(2026, 5, 29); // Latest date in dataset
-    const start = new Date(end);
-    start.setDate(start.getDate() - 30);
-    return { start, end };
-  }
+  
   return { start: null, end: null };
+}
+
+/**
+ * Format relative time (e.g. "baru saja", "2 menit lalu", "1 jam lalu")
+ */
+export function formatRelativeTime(date) {
+  if (!date) return 'Belum pernah';
+  const now = new Date();
+  const diffInSeconds = Math.floor((now - date) / 1000);
+
+  if (diffInSeconds < 30) return 'Baru saja';
+  if (diffInSeconds < 60) return `${diffInSeconds} detik yang lalu`;
+  
+  const minutes = Math.floor(diffInSeconds / 60);
+  if (minutes < 60) return `${minutes} menit yang lalu`;
+  
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} jam yang lalu`;
+  
+  return formatDMY(date);
 }
