@@ -48,13 +48,18 @@ export function useMeterData() {
         processRecords(window.DATA_KWH, 'default');
         return;
       }
-      const res = await fetch('/data_kwh.json');
+      const baseUrl = import.meta.env.BASE_URL || '/';
+      const dataUrl = `${baseUrl.endsWith('/') ? baseUrl : baseUrl + '/'}data_kwh.json`;
+      const res = await fetch(dataUrl);
       if (res.ok) {
         const data = await res.json();
         processRecords(data, 'default');
+      } else {
+        setLoading(false);
       }
     } catch (err) {
-      console.warn('Fallback to bundled data:', err);
+      console.warn('Fallback data loading:', err);
+      setLoading(false);
     }
   }, [processRecords]);
 
@@ -116,11 +121,10 @@ export function useMeterData() {
         data: records
       };
 
-      // Send to Google Apps Script Web App
       const res = await fetch(gasUrl, {
         method: 'POST',
         headers: {
-          'Content-Type': 'text/plain;charset=utf-8' // Avoid CORS preflight for GAS Web App
+          'Content-Type': 'text/plain;charset=utf-8'
         },
         body: JSON.stringify(payload)
       });
@@ -133,7 +137,6 @@ export function useMeterData() {
 
       showToast(`Sukses! ${records.length.toLocaleString('id-ID')} data berhasil diperbarui di Google Spreadsheet.`);
 
-      // Re-sync directly to get the absolute latest state
       await directSyncFromAppsScript(true);
       return json;
     } catch (err) {
