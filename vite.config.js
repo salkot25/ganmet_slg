@@ -4,9 +4,22 @@ import react from '@vitejs/plugin-react';
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
-  base: './', // Relative base path for GitHub Pages compatibility
+  base: '/ganmet_slg/', // Exact repo path for GitHub Pages
   server: {
     port: 3000,
     open: false
+  },
+  build: {
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom'],
+          'vendor-charts': ['chart.js', 'react-chartjs-2'],
+          'vendor-xlsx': ['xlsx', 'papaparse'],
+          'vendor-icons': ['lucide-react']
+        }
+      }
+    }
   }
 });

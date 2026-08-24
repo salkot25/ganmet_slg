@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
-import { parseDMY, formatDMY } from '../utils/dateHelpers';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { parseDMY, formatDMY, formatRelativeTime } from '../utils/dateHelpers';
 import { SPREADSHEET_CONFIG } from '../constants/appConfig';
 
 /**
- * Custom hook for Meter Data fetching, direct sync, and updating Google Spreadsheet
+ * Enterprise Custom hook for Meter Data fetching, direct sync, auto-refresh, and caching
  */
 export function useMeterData() {
   const [rawData, setRawData] = useState([]);
@@ -13,9 +13,12 @@ export function useMeterData() {
   const [error, setError] = useState(null);
   const [dataSource, setDataSource] = useState('default'); // 'default' | 'apps_script' | 'csv' | 'excel'
   const [lastSyncTime, setLastSyncTime] = useState(null);
+  const [relativeTimeStr, setRelativeTimeStr] = useState('Memuat...');
+  const [autoSyncInterval, setAutoSyncInterval] = useState(0); // 0 = off, 300000 = 5 min, 900000 = 15 min
   const [toastMessage, setToastMessage] = useState(null); // { type: 'success' | 'error', text: '' }
 
   const gasUrl = SPREADSHEET_CONFIG.DEFAULT_GAS_URL;
+  const pollTimerRef = useRef(null);
 
   const showToast = useCallback((text, type = 'success') => {
     setToastMessage({ text, type });
@@ -23,6 +26,18 @@ export function useMeterData() {
       setToastMessage(null);
     }, 4000);
   }, []);
+
+  // Relative time updater
+  useEffect(() => {
+    const updateRelative = () => {
+      if (lastSyncTime) {
+        setRelativeTimeStr(formatRelativeTime(lastSyncTime));
+      }
+    };
+    updateRelative();
+    const interval = setInterval(updateRelative, 15000);
+    return () => clearInterval(interval);
+  }, [lastSyncTime]);
 
   const processRecords = useCallback((records, source = 'default') => {
     const processed = records.map((item, idx) => {
@@ -36,7 +51,9 @@ export function useMeterData() {
     });
     setRawData(processed);
     setDataSource(source);
-    setLastSyncTime(new Date());
+    const now = new Date();
+    setLastSyncTime(now);
+    setRelativeTimeStr('Baru saja');
     setLoading(false);
     setIsSyncing(false);
     setIsUploading(false);
@@ -48,13 +65,18 @@ export function useMeterData() {
         processRecords(window.DATA_KWH, 'default');
         return;
       }
-      const res = await fetch('/data_kwh.json');
+      const baseUrl = import.meta.env.BASE_URL || '/';
+      const dataUrl = `${baseUrl.endsWith('/') ? baseUrl : baseUrl + '/'}data_kwh.json`;
+      const res = await fetch(dataUrl);
       if (res.ok) {
         const data = await res.json();
         processRecords(data, 'default');
+      } else {
+        setLoading(false);
       }
     } catch (err) {
-      console.warn('Fallback to bundled data:', err);
+      console.warn('Fallback data loading:', err);
+      setLoading(false);
     }
   }, [processRecords]);
 
@@ -101,6 +123,21 @@ export function useMeterData() {
     }
   }, [gasUrl, processRecords, showToast, rawData.length, loadDefaultData]);
 
+  // Auto-sync polling scheduler
+  useEffect(() => {
+    if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+
+    if (autoSyncInterval > 0) {
+      pollTimerRef.current = setInterval(() => {
+        directSyncFromAppsScript(true).catch(() => {});
+      }, autoSyncInterval);
+    }
+
+    return () => {
+      if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+    };
+  }, [autoSyncInterval, directSyncFromAppsScript]);
+
   // Upload Excel records and push to Google Spreadsheet via POST
   const uploadAndSyncToSpreadsheet = useCallback(async (action, records) => {
     if (!records || records.length === 0) {
@@ -116,11 +153,10 @@ export function useMeterData() {
         data: records
       };
 
-      // Send to Google Apps Script Web App
       const res = await fetch(gasUrl, {
         method: 'POST',
         headers: {
-          'Content-Type': 'text/plain;charset=utf-8' // Avoid CORS preflight for GAS Web App
+          'Content-Type': 'text/plain;charset=utf-8'
         },
         body: JSON.stringify(payload)
       });
@@ -133,7 +169,6 @@ export function useMeterData() {
 
       showToast(`Sukses! ${records.length.toLocaleString('id-ID')} data berhasil diperbarui di Google Spreadsheet.`);
 
-      // Re-sync directly to get the absolute latest state
       await directSyncFromAppsScript(true);
       return json;
     } catch (err) {
@@ -159,6 +194,9 @@ export function useMeterData() {
     error,
     dataSource,
     lastSyncTime,
+    relativeTimeStr,
+    autoSyncInterval,
+    setAutoSyncInterval,
     toastMessage,
     directSyncFromAppsScript,
     uploadAndSyncToSpreadsheet
