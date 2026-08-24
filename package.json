@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "homepage": "https://salkot25.github.io/ganmet_slg",
+  "homepage": "https://harmet.salkot.online",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
